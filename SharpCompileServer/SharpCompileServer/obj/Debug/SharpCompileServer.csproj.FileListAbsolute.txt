@@ -1,0 +1,9 @@
+C:\Users\dtm\source\repos\SharpCompileServer\SharpCompileServer\obj\Debug\SharpCompileServer.csprojAssemblyReference.cache
+C:\Users\dtm\source\repos\SharpCompileServer\SharpCompileServer\obj\Debug\SharpCompileServer.csproj.CoreCompileInputs.cache
+C:\Users\dtm\source\repos\SharpCompileServer\SharpCompileServer\bin\Debug\SharpCompileServer.exe.config
+C:\Users\dtm\source\repos\SharpCompileServer\SharpCompileServer\bin\Debug\SharpCompileServer.exe
+C:\Users\dtm\source\repos\SharpCompileServer\SharpCompileServer\bin\Debug\SharpCompileServer.pdb
+C:\Users\dtm\source\repos\SharpCompileServer\SharpCompileServer\bin\Debug\Newtonsoft.Json.xml
+C:\Users\dtm\source\repos\SharpCompileServer\SharpCompileServer\obj\Debug\SharpCompileServer.csproj.CopyComplete
+C:\Users\dtm\source\repos\SharpCompileServer\SharpCompileServer\obj\Debug\SharpCompileServer.exe
+C:\Users\dtm\source\repos\SharpCompileServer\SharpCompileServer\obj\Debug\SharpCompileServer.pdb
