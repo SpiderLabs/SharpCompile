@@ -25,6 +25,16 @@ Username: Administrator
 Domain: EVILCORP
 ```
 
+*sharp-fexec alias:*
+
+```
+beacon> sharp-fexec /root/Tools/SharpCompile/SampleScripts/HelloWorld.cs "Sharp Compile"
+[*] Tasked beacon to run .NET program: sharpcompile_51705.exe "Sharp Compile"
+[+] host called home, sent: 109129 bytes
+[+] received output:
+Hello Sharp Compile!
+```
+
 *SharpCompile beacon menu:*
 
 Right hand click a beacon:
@@ -58,6 +68,7 @@ Note: The version of .NET Framework csc.exe you specify for server component mat
 
 ## Authors
 * **David Middlehurst** - Twitter- [@dtmsecurity](https://twitter.com/dtmsecurity)
+* **Arris Huijgen** - Twitter- [@_bitsadmin](https://twitter.com/_bitsadmin)
 
 ## License
 
